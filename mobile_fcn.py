@@ -60,7 +60,7 @@ st.subheader("📉 180天風險路徑模擬")
 
 # 1. 針對手機效能優化的參數
 n_days = 180      # 模擬 180 天
-n_paths = 35      # 路徑數設為 35，這在 iPhone 15 Plus 上跑起來最順暢
+n_paths = 100      # 路徑數設為 100，這在 iPhone 15 Plus 上跑起來最順暢
 # 1. 抓取過去 30 天的歷史股價來算波動率
 hist_for_sigma = yf.Ticker(ticker).history(period="1mo")
 if len(hist_for_sigma) > 5:
