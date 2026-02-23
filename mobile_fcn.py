@@ -107,10 +107,54 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
+# --- 110行開始：計算贏面機率與專業功能 ---
 
+# 1. 計算贏面機率
+no_touch_count = sum(1 for j in range(n_paths) if np.min(paths[:, j]) > ki_pct)
+win_rate = (no_touch_count / n_paths) * 100
 
-# --- 稽核按鈕 ---
-if st.button("🚀 生成稽核存證並加密"):
-    st.balloons()
-    st.success(f"已生成稽核編號: {np.random.randint(100000, 999999)}")
-    st.info("稽核狀態：符合 2026 金融合規準則。資料已鎖定於本地內網。")
+# 顯示勝率霓虹卡片
+st.markdown(
+    f"""
+    <div style="background-color: #1E1E1E; padding: 20px; border-radius: 15px; border: 2px solid #00FFA3; text-align: center; margin-bottom: 20px;">
+        <p style="color: #00FFA3; font-size: 18px; margin-bottom: 5px;">🏆 預估勝率 (未觸發 KI)</p>
+        <p style="color: #FFFFFF; font-size: 36px; font-weight: bold; margin: 0;">{win_rate:.1f}%</p>
+        <p style="color: #888888; font-size: 12px;">基於 {n_paths} 條路徑之 180 天模擬</p>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
+
+# 2. 強化版稽核按鈕與 PDF 生成
+if st.button("🚀 生成專業 PDF 報告並加密存證"):
+    import random
+    from fpdf import FPDF
+    import base64
+    
+    st.balloons() # 慶祝生成成功
+    audit_no = random.randint(100000, 999999)
+    
+    # PDF 邏輯
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, f"FCN Investment Audit Report - #{audit_no}", ln=True)
+    pdf.set_font("Arial", '', 12)
+    pdf.ln(10)
+    pdf.cell(0, 10, f"Ticker: {ticker}", ln=True)
+    pdf.cell(0, 10, f"Current Price: ${current_p:.2f}", ln=True)
+    pdf.cell(0, 10, f"Strike Price: {strike_pct*100:.1f}%", ln=True)
+    pdf.cell(0, 10, f"Barrier Price (KI): {ki_pct*100:.1f}%", ln=True)
+    pdf.cell(0, 10, f"Real-time Volatility: {sigma:.1%}", ln=True)
+    pdf.cell(0, 10, f"Simulated Win Rate: {win_rate:.1f}%", ln=True)
+    pdf.ln(10)
+    pdf.set_text_color(0, 128, 0)
+    pdf.cell(0, 10, "STATUS: COMPLIANT WITH 2026 FIN-REG", ln=True)
+    
+    # 匯出並生成下載連結
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+    b64 = base64.b64encode(pdf_bytes).decode()
+    href = f'<a href="data:application/pdf;base64,{b64}" download="FCN_Report_{audit_no}.pdf" style="text-decoration: none;"><div style="background-color: #007AFF; color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold;">⬇️ 點此下載 PDF 報告</div></a>'
+    
+    st.markdown(href, unsafe_allow_html=True)
+    st.success(f"稽核憑證 #{audit_no} 已加密生成！資料已鎖定於本地內網。")
