@@ -53,13 +53,50 @@ with c2:
 
 # --- 風險模擬模擬圖 ---
 st.subheader("📉 風險路徑模擬")
+
+import numpy as np
+
+# 1. 設定模擬參數
+n_days = 30      # 模擬未來 30 天
+n_paths = 50     # 畫出 50 條路徑
+sigma = 0.3      # 假設年化波動率 30%
+dt = 1/252       # 每日時間步長
+mu = 0.05        # 假設預期回報 5%
+
+# 2. 生成隨機路徑 (從 1.0 開始)
+paths = np.ones((n_days, n_paths))
+for i in range(1, n_days):
+    # 使用幾何布朗運動公式
+    shocks = np.random.standard_normal(n_paths)
+    paths[i] = paths[i-1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * shocks)
+
+# 3. 繪圖
 fig = go.Figure()
-# 快速繪製標竿線
-fig.add_hline(y=1.0, line_color="black", line_width=1, annotation_text="現價")
-fig.add_hline(y=strike_pct, line_dash="dash", line_color="green", annotation_text="執行價")
-fig.add_hline(y=ki_pct, line_dash="dot", line_color="red", annotation_text="障礙價")
-fig.update_layout(height=300, margin=dict(l=0, r=0, t=20, b=0), yaxis_range=[0.4, 1.2])
+
+# 畫出隨機路徑
+for j in range(n_paths):
+    fig.add_trace(go.Scatter(
+        y=paths[:, j], 
+        mode='lines', 
+        line=dict(width=0.5, color='rgba(100, 150, 255, 0.3)'),
+        showlegend=False
+    ))
+
+# 畫出標竿線 (現價、執行價、障礙價)
+fig.add_hline(y=1.0, line_color="black", line_width=2, annotation_text="現價")
+fig.add_hline(y=strike_pct/100, line_dash="dash", line_color="green", annotation_text="執行價")
+fig.add_hline(y=ki_pct/100, line_dash="dot", line_color="red", annotation_text="障礙價")
+
+fig.update_layout(
+    height=350, 
+    margin=dict(l=10, r=10, t=20, b=10),
+    yaxis_range=[0.5, 1.2], # 調整 Y 軸範圍讓波動更明顯
+    xaxis_title="未來交易日",
+    yaxis_title="相對價格 (1.0=現價)"
+)
+
 st.plotly_chart(fig, use_container_width=True)
+
 
 # --- 稽核按鈕 ---
 if st.button("🚀 生成稽核存證並加密"):
