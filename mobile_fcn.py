@@ -32,7 +32,7 @@ ticker = st.selectbox("🎯 當前監控標的", tickers)
 with st.container():
     st.subheader("⚙️ 設定參數")
     strike_pct = st.slider("執行價 (Strike %)", 70, 100, 80) / 100
-    ki_pct = st.slider("障礙價 (KI %)", 50, 80, 65) / 100
+    ki_pct = st.slider("下限觸發價 (KI %)", 50, 80, 65) / 100
     coupon = st.number_input("年化配息 (%)", value=12.0)
     
 # --- 關鍵指標顯示 ---
@@ -52,7 +52,7 @@ with c1:
     # 這裡會自動顯示你選的股票名稱
     st.metric(f"{ticker} 執行價", f"${current_p * strike_pct:.1f}")
 with c2:
-    st.metric(f"{ticker} 障礙價", f"${current_p * ki_pct:.1f}")
+    st.metric(f"{ticker} 下限觸發價", f"${current_p * ki_pct:.1f}")
 
 
 # --- 風險路徑模擬 (iPhone 15 Plus 優化版) ---
