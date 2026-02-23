@@ -36,14 +36,24 @@ with st.container():
     coupon = st.number_input("年化配息 (%)", value=12.0)
     
 # --- 關鍵指標顯示 ---
+# --- 抓取數據與邏輯處理 ---
+# 這裡會根據你在手機上選的 ticker (例如 AAPL)，自動去查它的現價
+stock_data = yf.Ticker(ticker).history(period="1d")
+if not stock_data.empty:
+    current_p = stock_data['Close'].iloc[-1]
+else:
+    current_p = 100.0  # 如果查不到，給一個預設值
+
+# --- 關鍵指標顯示 (覆蓋這裡) ---
 st.divider()
 c1, c2 = st.columns(2)
+
 with c1:
-    st.metric("TSM 執行價", f"${tsm_p * strike_pct:.1f}")
-    st.metric("TSM 障礙價", f"${tsm_p * ki_pct:.1f}")
+    # 這裡會自動顯示你選的股票名稱
+    st.metric(f"{ticker} 執行價", f"${current_p * strike_pct:.1f}")
 with c2:
-    st.metric("NVDA 執行價", f"${nvda_p * strike_pct:.1f}")
-    st.metric("NVDA 障礙價", f"${nvda_p * ki_pct:.1f}")
+    st.metric(f"{ticker} 障礙價", f"${current_p * ki_pct:.1f}")
+
 
 # --- 風險模擬模擬圖 ---
 st.subheader("📉 風險路徑模擬")
