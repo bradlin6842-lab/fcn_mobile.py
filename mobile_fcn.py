@@ -84,8 +84,8 @@ for j in range(n_paths):
 
 # 畫出標竿線 (現價、執行價、障礙價)
 fig.add_hline(y=1.0, line_color="black", line_width=2, annotation_text="現價")
-fig.add_hline(y=strike_pct/100, line_dash="dash", line_color="green", annotation_text="執行價")
-fig.add_hline(y=ki_pct/100, line_dash="dot", line_color="red", annotation_text="障礙價")
+fig.add_hline(y=strike_pct, line_dash="dash", line_color="green", annotation_text="執行價")
+fig.add_hline(y=ki_pct, line_dash="dot", line_color="red", annotation_text="障礙價")
 
 fig.update_layout(
     height=350, 
