@@ -15,24 +15,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- 頂部輸入區 ---
 st.title("🛡️ FCN 手機哨兵")
-st.caption("2026 AI Native 財富管理工具")
 
-# --- 即時抓取 TSM/NVDA 報價 ---
-@st.cache_data(ttl=600)
-def get_live_data():
-    tickers = ["TSM", "NVDA"]
-    data = {}
-    for t in tickers:
-        df = yf.Ticker(t).history(period="1d")
-        data[t] = df['Close'].iloc[-1]
-    return data
+# 讓你在手機上直接輸入代號，預設給 TSM, NVDA
+input_tickers = st.text_input("請輸入美股代號 (用逗號隔開)", value="TSM, NVDA")
 
-try:
-    prices = get_live_data()
-    tsm_p, nvda_p = prices["TSM"], prices["NVDA"]
-except:
-    tsm_p, nvda_p = 370.54, 189.82  # 預設回退值
+# 把字串轉成清單，並去除空格
+tickers = [t.strip().upper() for t in input_tickers.split(",")]
+
+# 讓選單跟著你的輸入跑
+ticker = st.selectbox("🎯 當前監控標的", tickers)
+
 
 # --- 參數調整區 (主畫面，方便手指操作) ---
 with st.container():
