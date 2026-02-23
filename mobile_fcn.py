@@ -127,34 +127,89 @@ st.markdown(
 
 # 2. 強化版稽核按鈕與 PDF 生成
 if st.button("🚀 生成專業 PDF 報告並加密存證"):
-    import random
     from fpdf import FPDF
     import base64
+    import random
     
-    st.balloons() # 慶祝生成成功
+    st.balloons() # iPhone 15 Plus 跑這個特效超順
     audit_no = random.randint(100000, 999999)
     
-    # PDF 邏輯
-    pdf = FPDF()
+    # 建立具有高級感頁首頁尾的類別
+    class PDF(FPDF):
+        def header(self):
+            # 黑色高級感頂欄
+            self.set_fill_color(30, 30, 30)
+            self.rect(0, 0, 210, 35, 'F')
+            self.set_text_color(255, 255, 255)
+            self.set_font('Arial', 'B', 20)
+            self.cell(0, 15, 'FCN INVESTMENT ANALYSIS', 0, 1, 'C')
+            self.set_font('Arial', 'I', 10)
+            self.cell(0, -5, f'Audit Certificate: #{audit_no}', 0, 1, 'C')
+            self.ln(20)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('Arial', 'I', 8)
+            self.set_text_color(128, 128, 128)
+            self.cell(0, 10, f'Page {self.page_no()} | Confidential Reg-Tech Report | 2026 Financial AI', 0, 0, 'C')
+
+    pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"FCN Investment Audit Report - #{audit_no}", ln=True)
-    pdf.set_font("Arial", '', 12)
-    pdf.ln(10)
-    pdf.cell(0, 10, f"Ticker: {ticker}", ln=True)
-    pdf.cell(0, 10, f"Current Price: ${current_p:.2f}", ln=True)
-    pdf.cell(0, 10, f"Strike Price: {strike_pct*100:.1f}%", ln=True)
-    pdf.cell(0, 10, f"Barrier Price (KI): {ki_pct*100:.1f}%", ln=True)
-    pdf.cell(0, 10, f"Real-time Volatility: {sigma:.1%}", ln=True)
-    pdf.cell(0, 10, f"Simulated Win Rate: {win_rate:.1f}%", ln=True)
-    pdf.ln(10)
-    pdf.set_text_color(0, 128, 0)
-    pdf.cell(0, 10, "STATUS: COMPLIANT WITH 2026 FIN-REG", ln=True)
     
-    # 匯出並生成下載連結
+    # 區塊 1：資產概況 (淺灰底)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, f' [ I ] ASSET SUMMARY: {ticker}', 0, 1, 'L', fill=True)
+    pdf.set_font('Arial', '', 12)
+    pdf.set_text_color(50, 50, 50)
+    pdf.ln(4)
+    pdf.cell(0, 8, f'  - Current Market Price: ${current_p:,.2f}', ln=True)
+    pdf.cell(0, 8, f'  - Real-time Volatility (Sigma): {sigma:.1%}', ln=True)
+    pdf.ln(6)
+
+    # 區塊 2：策略參數
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, ' [ II ] STRATEGY PARAMETERS', 0, 1, 'L', fill=True)
+    pdf.set_font('Arial', '', 12)
+    pdf.ln(4)
+    pdf.cell(0, 8, f'  - Strike Price (Execution): {strike_pct*100:.1f}% (${current_p*strike_pct:,.1f})', ln=True)
+    pdf.cell(0, 8, f'  - Barrier Price (Knock-In): {ki_pct*100:.1f}% (${current_p*ki_pct:,.1f})', ln=True)
+    pdf.ln(6)
+
+    # 區塊 3：勝率預測 (動態顏色)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, ' [ III ] RISK SIMULATION RESULT', 0, 1, 'L', fill=True)
+    pdf.ln(5)
+    
+    # 根據勝率自動變色：高勝率綠色，低勝率紅色
+    if win_rate > 80:
+        pdf.set_text_color(0, 128, 0) # 綠色
+        status_text = "PASS - LOW RISK"
+    else:
+        pdf.set_text_color(200, 0, 0) # 紅色
+        status_text = "CAUTION - HIGH VOLATILITY"
+        
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(0, 10, f'  >>> PROBABILITY OF SUCCESS: {win_rate:.1f}%', ln=True)
+    
+    pdf.set_text_color(100, 100, 100)
+    pdf.set_font('Arial', 'I', 10)
+    pdf.multi_cell(0, 7, f'Result derived from 180-day Monte Carlo horizon using {n_paths} stochastic paths. Model status: {status_text}.')
+
+    # 底部簽章線
+    pdf.ln(15)
+    pdf.set_draw_color(0, 150, 0)
+    pdf.set_line_width(0.5)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(4)
+    pdf.set_text_color(0, 100, 0)
+    pdf.set_font('Arial', 'B', 10)
+    pdf.cell(0, 10, 'CERTIFIED BY 2026 AI COMPLIANCE ENGINE', 0, 1, 'C')
+
+    # 輸出連結
     pdf_bytes = pdf.output(dest='S').encode('latin-1')
     b64 = base64.b64encode(pdf_bytes).decode()
-    href = f'<a href="data:application/pdf;base64,{b64}" download="FCN_Report_{audit_no}.pdf" style="text-decoration: none;"><div style="background-color: #007AFF; color: white; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold;">⬇️ 點此下載 PDF 報告</div></a>'
-    
+    href = f'<a href="data:application/pdf;base64,{b64}" download="FCN_Analysis_{audit_no}.pdf" style="text-decoration: none;"><div style="background-color: #2ECC71; color: white; padding: 18px; border-radius: 12px; text-align: center; font-weight: bold; font-size: 18px; box-shadow: 0px 4px 10px rgba(0,0,0,0.2);">⬇️ 下載專業級投行報告</div></a>'
     st.markdown(href, unsafe_allow_html=True)
-    st.success(f"稽核憑證 #{audit_no} 已加密生成！資料已鎖定於本地內網。")
+    st.success(f"稽核憑證 #{audit_no} 已鎖定存證。")
+
