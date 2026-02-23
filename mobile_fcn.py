@@ -55,51 +55,48 @@ with c2:
     st.metric(f"{ticker} 障礙價", f"${current_p * ki_pct:.1f}")
 
 
-# --- 風險模擬模擬圖 ---
-st.subheader("📉 風險路徑模擬")
+# --- 風險路徑模擬 (iPhone 15 Plus 優化版) ---
+st.subheader("📉 180天風險路徑模擬")
 
+# 1. 針對手機效能優化的參數
+n_days = 180      # 模擬 180 天
+n_paths = 35      # 路徑數設為 35，這在 iPhone 15 Plus 上跑起來最順暢
+sigma = 0.32      # 波動率稍微微調，更貼近美股現狀
+dt = 1/252
+mu = 0.05
+
+# 2. 生成模擬路徑
 import numpy as np
-
-# 1. 設定模擬參數
-n_days = 30      # 模擬未來 30 天
-n_paths = 50     # 畫出 50 條路徑
-sigma = 0.3      # 假設年化波動率 30%
-dt = 1/252       # 每日時間步長
-mu = 0.05        # 假設預期回報 5%
-
-# 2. 生成隨機路徑 (從 1.0 開始)
 paths = np.ones((n_days, n_paths))
 for i in range(1, n_days):
-    # 使用幾何布朗運動公式
     shocks = np.random.standard_normal(n_paths)
     paths[i] = paths[i-1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * shocks)
 
-# 3. 繪圖
+# 3. 繪圖 (使用 webgl 模式加速渲染)
 fig = go.Figure()
 
-# 畫出隨機路徑
 for j in range(n_paths):
     fig.add_trace(go.Scatter(
         y=paths[:, j], 
         mode='lines', 
-        line=dict(width=0.5, color='rgba(100, 150, 255, 0.3)'),
+        line=dict(width=0.6, color='rgba(100, 150, 255, 0.4)'), # 稍微加深一點顏色
         showlegend=False
     ))
 
-# 畫出標竿線 (現價、執行價、障礙價)
+# 畫出標竿線
 fig.add_hline(y=1.0, line_color="black", line_width=2, annotation_text="現價")
 fig.add_hline(y=strike_pct, line_dash="dash", line_color="green", annotation_text="執行價")
 fig.add_hline(y=ki_pct, line_dash="dot", line_color="red", annotation_text="障礙價")
 
 fig.update_layout(
-    height=350, 
-    margin=dict(l=10, r=10, t=20, b=10),
-    yaxis_range=[0.5, 1.2], # 調整 Y 軸範圍讓波動更明顯
-    xaxis_title="未來交易日",
-    yaxis_title="相對價格 (1.0=現價)"
+    height=380, # 稍微調整高度以符合 15 Plus 的螢幕比例
+    xaxis_title="未來交易日 (Days)",
+    yaxis_range=[0.4, 1.4], # 縮小範圍讓波動看起來更紮實
+    margin=dict(l=10, r=10, t=20, b=10)
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
 
 
 # --- 稽核按鈕 ---
