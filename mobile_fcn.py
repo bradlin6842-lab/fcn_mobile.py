@@ -3,223 +3,181 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
+import random
+import base64
+from fpdf import FPDF
 
-# 設定手機版頁面優化
-st.set_page_config(page_title="FCN Mobile Sentinel", layout="centered")
+# --- Page Configuration ---
+st.set_page_config(page_title="FCN Sentinel Pro", layout="centered")
 
-# --- CSS 注入：優化手機按鈕與間距 ---
+# --- Custom CSS for Dark Theme & Metrics ---
 st.markdown("""
     <style>
-    .stMetric { background-color: #f0f2f6; padding: 10px; border-radius: 10px; }
-    .stButton>button { width: 100%; border-radius: 20px; height: 3em; background-color: #007bff; color: white; }
+    .main { background-color: #0E1117; }
+    div[data-testid="stMetricValue"] { font-size: 22px; color: #00FFA3; }
+    div[data-testid="stMetricLabel"] { font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 頂部輸入區 ---
-st.title("🛡️ FCN 手機哨兵")
+# --- Header ---
+st.title("🛡️ FCN Mobile Sentinel Pro")
 
-# 讓你在手機上直接輸入代號，預設給 TSM, NVDA
-input_tickers = st.text_input("請輸入美日港台股代號 (用逗號隔開)", value="TSM, NVDA")
-
-# 把字串轉成清單，並去除空格
+# --- 1. Asset Selection ---
+input_tickers = st.text_input("Enter Ticker Symbols (e.g., NVDA, 6857.T, 0700.HK)", "NVDA, TSM, 6857.T")
 tickers = [t.strip().upper() for t in input_tickers.split(",")]
+ticker = st.selectbox("🎯 Target Asset", tickers)
 
-# 讓選單跟著你的輸入跑
-ticker = st.selectbox("🎯 當前監控標的", tickers)
+# --- 2. Enhanced Data Fetching (Fundamentals) ---
+@st.cache_data(ttl=3600)
+def get_asset_info(symbol):
+    asset = yf.Ticker(symbol)
+    info = asset.info
+    return {
+        "name": info.get('longName', symbol),
+        "pe": info.get('trailingPE', 'N/A'),
+        "low52": info.get('fiftyTwoWeekLow', 0),
+        "high52": info.get('fiftyTwoWeekHigh', 0),
+        "curr": info.get('regularMarketPrice') or info.get('previousClose', 100.0)
+    }
 
+asset_info = get_asset_info(ticker)
+current_p = asset_info['curr']
 
-# --- 參數調整區 (主畫面，方便手指操作) ---
-with st.container():
-    st.subheader("⚙️ 設定參數")
-strike_pct = st.slider("執行價 (Strike %)", 50, 100, 80) / 100
-ki_pct = st.slider("下限觸發價 (KI %)", 49, 80, 65) / 100
-coupon = st.number_input("年化配息 (%)", value=12.0)
-    
-# --- 關鍵指標顯示 ---
-# --- 抓取數據與邏輯處理 ---
-# 這裡會根據你在手機上選的 ticker (例如 AAPL)，自動去查它的現價
-stock_data = yf.Ticker(ticker).history(period="1d")
-if not stock_data.empty:
-    current_p = stock_data['Close'].iloc[-1]
-else:
-    current_p = 100.0  # 如果查不到，給一個預設值
+# Display Company Profile
+st.subheader(f"🏢 {asset_info['name']}")
+m1, m2, m3 = st.columns(3)
+with m1:
+    st.metric("P/E Ratio", f"{asset_info['pe']:.2f}" if isinstance(asset_info['pe'], (int, float)) else "N/A")
+with m2:
+    st.metric("52W Low", f"${asset_info['low52']:,.1f}")
+with m3:
+    st.metric("52W High", f"${asset_info['high52']:,.1f}")
 
-# --- 關鍵指標顯示 (覆蓋這裡) ---
 st.divider()
+
+# --- 3. Strategy Parameters ---
+with st.container():
+    st.subheader("⚙️ Strategy Settings")
+    strike_pct = st.slider("Strike Price (%)", 50, 100, 80) / 100
+    ki_pct = st.slider("Knock-In Barrier (KI %)", 30, 80, 60) / 100
+    coupon = st.number_input("Annualized Coupon (%)", value=12.0)
+
 c1, c2 = st.columns(2)
-
 with c1:
-    # 這裡會自動顯示你選的股票名稱
-    st.metric(f"{ticker} 執行價", f"${current_p * strike_pct:.1f}")
+    st.metric(f"Target Strike", f"${current_p * strike_pct:,.2f}")
 with c2:
-    st.metric(f"{ticker} 下限觸發價", f"${current_p * ki_pct:.1f}")
+    st.metric(f"Target KI Barrier", f"${current_p * ki_pct:,.2f}")
 
+# --- 4. Volatility Engine (Dual Mode) ---
+st.subheader("📉 Risk Path Simulation")
+vol_mode = st.radio("Volatility Lookup Period", ["30D (Sentinel)", "180D (Bank Std)"], horizontal=True)
+period_map = {"30D (Sentinel)": "1mo", "180D (Bank Std)": "6mo"}
 
-# --- 風險路徑模擬 (iPhone 15 Plus 優化版) ---
-st.subheader("📉 180天風險路徑模擬")
-
-# 1. 針對手機效能優化的參數
-n_days = 180      # 模擬 180 天
-n_paths = 100      # 路徑數設為 100，這在 iPhone 15 Plus 上跑起來最順暢
-# --- 波動率切換與計算 (第 64 行開始) ---
-vol_mode = st.radio("選擇波動率基準", ["30天 (哨兵模式)", "180天 (銀行模式)"], horizontal=True)
-period_map = {"30天 (哨兵模式)": "1mo", "180天 (銀行模式)": "6mo"}
-
-# 抓取歷史數據來算波動率
-hist_for_sigma = yf.Ticker(ticker).history(period=period_map[vol_mode])
-
-if len(hist_for_sigma) > 10:
-    # 計算日對數收益率的標準差，再年化
-    log_returns = np.log(hist_for_sigma['Close'] / hist_for_sigma['Close'].shift(1))
+hist_data = yf.Ticker(ticker).history(period=period_map[vol_mode])
+if len(hist_data) > 10:
+    log_returns = np.log(hist_data['Close'] / hist_data['Close'].shift(1))
     sigma = log_returns.std() * np.sqrt(252)
-    # 限制範圍：最低 0.1 (10%)，最高 0.9 (90%)
     sigma = max(min(sigma, 0.9), 0.1)
 else:
-    sigma = 0.32  # 備案預設值
+    sigma = 0.32
 
-# 顯示目前的實時數據
-st.caption(f"📊 目前使用 {vol_mode}，年化波動率為: {sigma:.1%}")
+st.caption(f"📊 Mode: {vol_mode} | Annual Volatility: {sigma:.1%}")
 
-# 緊接原本的 dt 與 mu
-dt = 1/252
-mu = 0.05
-
-
-# 2. 生成模擬路徑
-import numpy as np
+# --- 5. Monte Carlo Simulation (Student's t for Tail Risk) ---
+n_days, n_paths, dt, mu = 180, 100, 1/252, 0.05
 paths = np.ones((n_days, n_paths))
 for i in range(1, n_days):
-    shocks = np.random.standard_normal(n_paths)
+    # df=3 simulates fat tails (higher probability of extreme moves)
+    shocks = np.random.standard_t(df=3, size=n_paths) * 0.7 
     paths[i] = paths[i-1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * shocks)
 
-# 3. 繪圖 (使用 webgl 模式加速渲染)
+# --- 6. Plotting ---
 fig = go.Figure()
-
 for j in range(n_paths):
-    fig.add_trace(go.Scatter(
-        y=paths[:, j], 
-        mode='lines', 
-        line=dict(width=0.6, color='rgba(100, 150, 255, 0.4)'), # 稍微加深一點顏色
-        showlegend=False
-    ))
+    fig.add_trace(go.Scatter(y=paths[:, j], mode='lines', line=dict(width=0.5, color='rgba(100, 150, 255, 0.3)'), showlegend=False))
 
-# 畫出標竿線
-fig.add_hline(y=1.0, line_color="black", line_width=2, annotation_text="現價")
-fig.add_hline(y=strike_pct, line_dash="dash", line_color="green", annotation_text="執行價")
-fig.add_hline(y=ki_pct, line_dash="dot", line_color="red", annotation_text="障礙價")
+fig.add_hline(y=1.0, line_color="white", line_width=2)
+fig.add_hline(y=strike_pct, line_dash="dash", line_color="orange")
+fig.add_hline(y=ki_pct, line_dash="dot", line_color="red")
 
 fig.update_layout(
-    height=380, # 稍微調整高度以符合 15 Plus 的螢幕比例
-    xaxis_title="未來交易日 (Days)",
-    yaxis_range=[0.4, 1.4], # 縮小範圍讓波動看起來更紮實
-    margin=dict(l=10, r=10, t=20, b=10)
+    height=350, template="plotly_dark",
+    xaxis_title="Forward Trading Days", yaxis_title="Price Ratio",
+    margin=dict(l=5, r=5, t=10, b=5)
 )
-
 st.plotly_chart(fig, use_container_width=True)
 
-# --- 110行開始：計算贏面機率與專業功能 ---
-
-# 1. 計算贏面機率
+# --- 7. Probability Card ---
 no_touch_count = sum(1 for j in range(n_paths) if np.min(paths[:, j]) > ki_pct)
 win_rate = (no_touch_count / n_paths) * 100
 
-# 顯示勝率霓虹卡片
-st.markdown(
-    f"""
-    <div style="background-color: #1E1E1E; padding: 20px; border-radius: 15px; border: 2px solid #00FFA3; text-align: center; margin-bottom: 20px;">
-        <p style="color: #00FFA3; font-size: 18px; margin-bottom: 5px;">🏆 預估勝率 (未觸發 KI)</p>
-        <p style="color: #FFFFFF; font-size: 36px; font-weight: bold; margin: 0;">{win_rate:.1f}%</p>
-        <p style="color: #888888; font-size: 12px;">基於 {n_paths} 條路徑之 180 天模擬</p>
+st.markdown(f"""
+    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 12px; border: 2px solid #00FFA3; text-align: center; margin-bottom: 20px;">
+        <p style="color: #00FFA3; font-size: 16px; margin: 0;">🏆 Est. Win Rate (No KI Event)</p>
+        <p style="color: #FFFFFF; font-size: 32px; font-weight: bold; margin: 5px 0;">{win_rate:.1f}%</p>
+        <p style="color: #888888; font-size: 11px;">Simulation: 100 paths | Student's t-dist</p>
     </div>
-    """, 
-    unsafe_allow_html=True
-)
+    """, unsafe_allow_html=True)
 
-# 2. 強化版稽核按鈕與 PDF 生成
-if st.button("🚀 生成專業 PDF 報告並加密存證"):
-    from fpdf import FPDF
-    import base64
-    import random
-    
-    st.balloons() # iPhone 15 Plus 跑這個特效超順
+# --- 8. Professional PDF Report ---
+if st.button("🚀 Generate Audit Certificate"):
+    st.balloons()
     audit_no = random.randint(100000, 999999)
     
-    # 建立具有高級感頁首頁尾的類別
     class PDF(FPDF):
         def header(self):
-            # 黑色高級感頂欄
-            self.set_fill_color(30, 30, 30)
-            self.rect(0, 0, 210, 35, 'F')
+            self.set_fill_color(20, 20, 20)
+            self.rect(0, 0, 210, 40, 'F')
             self.set_text_color(255, 255, 255)
-            self.set_font('Arial', 'B', 20)
-            self.cell(0, 15, 'FCN INVESTMENT ANALYSIS', 0, 1, 'C')
+            self.set_font('Arial', 'B', 18)
+            self.cell(0, 20, 'FCN STRATEGY AUDIT REPORT', 0, 1, 'C')
             self.set_font('Arial', 'I', 10)
-            self.cell(0, -5, f'Audit Certificate: #{audit_no}', 0, 1, 'C')
-            self.ln(20)
-
+            self.cell(0, -5, f'Certificate ID: #{audit_no}', 0, 1, 'C')
+            self.ln(25)
         def footer(self):
             self.set_y(-15)
             self.set_font('Arial', 'I', 8)
-            self.set_text_color(128, 128, 128)
-            self.cell(0, 10, f'Page {self.page_no()} | Confidential Reg-Tech Report | 2026 Financial AI', 0, 0, 'C')
+            self.cell(0, 10, f'FCN Sentinel Pro | Internal Analysis Report', 0, 0, 'C')
 
     pdf = PDF()
     pdf.add_page()
     
-    # 區塊 1：資產概況 (淺灰底)
-    pdf.set_fill_color(240, 240, 240)
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, f' [ I ] ASSET SUMMARY: {ticker}', 0, 1, 'L', fill=True)
-    pdf.set_font('Arial', '', 12)
-    pdf.set_text_color(50, 50, 50)
-    pdf.ln(4)
-    pdf.cell(0, 8, f'  - Current Market Price: ${current_p:,.2f}', ln=True)
-    pdf.cell(0, 8, f'  - Real-time Volatility (Sigma): {sigma:.1%}', ln=True)
-    pdf.ln(6)
-
-    # 區塊 2：策略參數
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, ' [ II ] STRATEGY PARAMETERS', 0, 1, 'L', fill=True)
-    pdf.set_font('Arial', '', 12)
-    pdf.ln(4)
-    pdf.cell(0, 8, f'  - Strike Price (Execution): {strike_pct*100:.1f}% (${current_p*strike_pct:,.1f})', ln=True)
-    pdf.cell(0, 8, f'  - Barrier Price (Knock-In): {ki_pct*100:.1f}% (${current_p*ki_pct:,.1f})', ln=True)
-    pdf.ln(6)
-
-    # 區塊 3：勝率預測 (動態顏色)
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, ' [ III ] RISK SIMULATION RESULT', 0, 1, 'L', fill=True)
+    # Section I: Profile
+    pdf.set_fill_color(230, 230, 230)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, f' [I] ASSET PROFILE: {asset_info["name"]} ({ticker})', 0, 1, 'L', fill=True)
+    pdf.set_font('Arial', '', 11)
+    pdf.ln(3)
+    pdf.cell(0, 7, f'  - Valuation (P/E Ratio): {asset_info["pe"]}', ln=True)
+    pdf.cell(0, 7, f'  - 52-Week Range: ${asset_info["low52"]:,.1f} - ${asset_info["high52"]:,.1f}', ln=True)
+    pdf.cell(0, 7, f'  - Current Market Price: ${current_p:,.2f}', ln=True)
     pdf.ln(5)
+
+    # Section II: Setup
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, ' [II] STRATEGY PARAMETERS', 0, 1, 'L', fill=True)
+    pdf.set_font('Arial', '', 11)
+    pdf.ln(3)
+    pdf.cell(0, 7, f'  - Strike Price: {strike_pct*100:.1f}% (${current_p*strike_pct:,.2f})', ln=True)
+    pdf.cell(0, 7, f'  - Knock-In Barrier: {ki_pct*100:.1f}% (${current_p*ki_pct:,.2f})', ln=True)
+    pdf.cell(0, 7, f'  - Annualized Coupon: {coupon:.2f}%', ln=True)
+    pdf.ln(5)
+
+    # Section III: Simulation
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, ' [III] RISK SIMULATION SUMMARY', 0, 1, 'L', fill=True)
+    pdf.ln(5)
+    pdf.set_font('Arial', 'B', 14)
+    status_color = (0, 128, 0) if win_rate > 80 else (200, 0, 0)
+    pdf.set_text_color(*status_color)
+    pdf.cell(0, 10, f'  >>> ESTIMATED WIN RATE: {win_rate:.1f}%', ln=True)
     
-    # 根據勝率自動變色：高勝率綠色，低勝率紅色
-    if win_rate > 80:
-        pdf.set_text_color(0, 128, 0) # 綠色
-        status_text = "PASS - LOW RISK"
-    else:
-        pdf.set_text_color(200, 0, 0) # 紅色
-        status_text = "CAUTION - HIGH VOLATILITY"
-        
-    pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 10, f'  >>> PROBABILITY OF SUCCESS: {win_rate:.1f}%', ln=True)
-    
-    pdf.set_text_color(100, 100, 100)
-    pdf.set_font('Arial', 'I', 10)
-    pdf.multi_cell(0, 7, f'Result derived from 180-day Monte Carlo horizon using {n_paths} stochastic paths. Model status: {status_text}.')
+    pdf.set_text_color(80, 80, 80)
+    pdf.set_font('Arial', 'I', 9)
+    pdf.multi_cell(0, 6, 'Disclaimer: This simulation uses a Student\'s t-distribution to model potential fat-tail risks (Black Swan events). This is a mathematical estimation and does not guarantee future results.')
 
-    # 底部簽章線
-    pdf.ln(15)
-    pdf.set_draw_color(0, 150, 0)
-    pdf.set_line_width(0.5)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(4)
-    pdf.set_text_color(0, 100, 0)
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(0, 10, 'CERTIFIED BY 2026 AI COMPLIANCE ENGINE', 0, 1, 'C')
-
-    # 輸出連結
-    pdf_bytes = pdf.output(dest='S').encode('latin-1')
-    b64 = base64.b64encode(pdf_bytes).decode()
-    href = f'<a href="data:application/pdf;base64,{b64}" download="FCN_Analysis_{audit_no}.pdf" style="text-decoration: none;"><div style="background-color: #2ECC71; color: white; padding: 18px; border-radius: 12px; text-align: center; font-weight: bold; font-size: 18px; box-shadow: 0px 4px 10px rgba(0,0,0,0.2);">⬇️ 下載專業級投行報告</div></a>'
-    st.markdown(href, unsafe_allow_html=True)
-    st.success(f"稽核憑證 #{audit_no} 已鎖定存證。")
-
+    # PDF Output Logic
+    pdf_output = pdf.output(dest='S').encode('latin-1')
+    b64_pdf = base64.b64encode(pdf_output).decode()
+    download_link = f'<a href="data:application/pdf;base64,{b64_pdf}" download="FCN_PRO_{ticker}_{audit_no}.pdf" style="text-decoration:none;"><div style="background-color:#2ECC71;color:white;padding:15px;border-radius:10px;text-align:center;font-weight:bold;">⬇️ Download Pro Audit Report</div></a>'
+    st.markdown(download_link, unsafe_allow_html=True)
