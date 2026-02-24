@@ -31,8 +31,9 @@ ticker = st.selectbox("🎯 當前監控標的", tickers)
 # --- 參數調整區 (主畫面，方便手指操作) ---
 with st.container():
     st.subheader("⚙️ 設定參數")
-    strike_pct = st.slider("執行價 (Strike %)", 70, 100, 80) / 100
-    ki_pct = st.slider("下限觸發價 (KI %)", 50, 80, 65) / 100
+strike_pct = st.slider("執行價 (Strike %)", 50, 100, 80) / 100
+ki_pct = st.slider("下限觸發價 (KI %)", 45, 80, 65) / 100
+
     coupon = st.number_input("年化配息 (%)", value=12.0)
     
 # --- 關鍵指標顯示 ---
