@@ -19,7 +19,7 @@ st.markdown("""
 st.title("🛡️ FCN 手機哨兵")
 
 # 讓你在手機上直接輸入代號，預設給 TSM, NVDA
-input_tickers = st.text_input("請輸入美股代號 (用逗號隔開)", value="TSM, NVDA")
+input_tickers = st.text_input("請輸入美日港台股代號 (用逗號隔開)", value="TSM, NVDA")
 
 # 把字串轉成清單，並去除空格
 tickers = [t.strip().upper() for t in input_tickers.split(",")]
