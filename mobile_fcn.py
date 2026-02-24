@@ -61,19 +61,29 @@ st.subheader("📉 180天風險路徑模擬")
 # 1. 針對手機效能優化的參數
 n_days = 180      # 模擬 180 天
 n_paths = 100      # 路徑數設為 100，這在 iPhone 15 Plus 上跑起來最順暢
-# 1. 抓取過去 30 天的歷史股價來算波動率
-hist_for_sigma = yf.Ticker(ticker).history(period="1mo")
-if len(hist_for_sigma) > 5:
-    # 計算年化波動率 (標準金融公式)
+# --- 波動率切換與計算 (第 64 行開始) ---
+vol_mode = st.radio("選擇波動率基準", ["30天 (哨兵模式)", "180天 (銀行模式)"], horizontal=True)
+period_map = {"30天 (哨兵模式)": "1mo", "180天 (銀行模式)": "6mo"}
+
+# 抓取歷史數據來算波動率
+hist_for_sigma = yf.Ticker(ticker).history(period=period_map[vol_mode])
+
+if len(hist_for_sigma) > 10:
+    # 計算日對數收益率的標準差，再年化
     log_returns = np.log(hist_for_sigma['Close'] / hist_for_sigma['Close'].shift(1))
     sigma = log_returns.std() * np.sqrt(252)
-    # 限制範圍在 0.1 到 0.9 之間，避免極端數據弄亂圖表
+    # 限制範圍：最低 0.1 (10%)，最高 0.9 (90%)
     sigma = max(min(sigma, 0.9), 0.1)
 else:
-    sigma = 0.32 # 萬一抓不到數據，就用原本的 0.32 當備案
-st.caption(f"📊 目前 {ticker} 實時年化波動率: {sigma:.1%}")
+    sigma = 0.32  # 備案預設值
+
+# 顯示目前的實時數據
+st.caption(f"📊 目前使用 {vol_mode}，年化波動率為: {sigma:.1%}")
+
+# 緊接原本的 dt 與 mu
 dt = 1/252
 mu = 0.05
+
 
 # 2. 生成模擬路徑
 import numpy as np
