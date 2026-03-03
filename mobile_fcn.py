@@ -66,7 +66,7 @@ st.divider()
 with st.container():
     st.subheader("⚙️ Strategy Settings")
     strike_pct = st.slider("Strike Price (%)", 50, 100, 80) / 100
-    ki_pct = st.slider("Knock-In Barrier (KI %)", 30, 80, 60) / 100
+    ki_pct = st.slider("Knock-In Barrier (KI %)", 50, 80, 60) / 100
     coupon = st.number_input("Annualized Coupon (%)", value=12.0)
 
 c1, c2 = st.columns(2)
