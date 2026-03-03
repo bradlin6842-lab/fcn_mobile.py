@@ -7,12 +7,7 @@ import plotly.graph_objects as go
 # --- Page Configuration ---
 st.set_page_config(page_title="FCN Sentinel Pro", layout="centered")
 
-st.markdown("""
-    <style>
-    .main { background-color: #0E1117; }
-    div[data-testid="stMetricValue"] { font-size: 22px; color: #00FFA3; }
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown("<style>.main { background-color: #0E1117; } div[data-testid='stMetricValue'] { font-size: 22px; color: #00FFA3; }</style>", unsafe_allow_html=True)
 
 st.title("🛡️ FCN Mobile Sentinel")
 
@@ -41,57 +36,49 @@ st.divider()
 
 # --- 2. Strategy Settings ---
 strike_pct = st.slider("Strike Price (%)", 50, 100, 80) / 100
-ki_pct = st.slider("Knock-In Barrier (KI %)", 50, 80, 60) / 100
+ki_pct = st.slider("Knock-In Barrier (KI %)", 50, 95, 80) / 100 # 擴大範圍方便測試
 ko_pct = st.slider("KO Level (Autocall %)", 85, 110, 103) / 100
 
-c1, c2 = st.columns(2)
-with c1: st.metric("Target Strike", f"${current_p * strike_pct:,.2f}")
-with c2: st.metric("Target KI", f"${current_p * ki_pct:,.2f}")
+st.metric("Target KI Barrier Price", f"${current_p * ki_pct:,.2f}")
 
-# --- 3. Volatility Period Selection (恢復功能) ---
+# --- 3. Volatility Selection ---
 vol_mode = st.radio("Volatility Period", ["30D (Sentinel)", "180D (Bank)"], horizontal=True)
-period_days = 30 if "30D" in vol_mode else 180
-hist_data = yf.Ticker(ticker).history(period="1y") # 抓一年資料來切
+hist_data = yf.Ticker(ticker).history(period="1y")
 
-if len(hist_data) > period_days:
-    recent_data = hist_data.tail(period_days)
-    log_returns = np.log(recent_data['Close'] / recent_data['Close'].shift(1))
-    sigma = log_returns.std() * np.sqrt(252)
+if len(hist_data) > 180:
+    target_data = hist_data.tail(30 if "30D" in vol_mode else 180)
+    sigma = np.log(target_data['Close'] / target_data['Close'].shift(1)).std() * np.sqrt(252)
 else:
-    sigma = 0.35
+    sigma = 0.45
 
 st.caption(f"📊 {vol_mode} Annual Volatility: {sigma:.1%}")
 
-# --- 4. Monte Carlo Simulation (修正邏輯) ---
-n_days, n_paths, dt, mu = 180, 100, 1/252, 0.05
-# 使用正態分佈以真實反應震盪
+# --- 4. Monte Carlo (提升至 500 條路徑) ---
+n_days, n_paths, dt, mu = 180, 500, 1/252, 0.05
 paths = np.ones((n_days, n_paths))
 for i in range(1, n_days):
-    # 回歸標準 GBM 公式，不人為縮減 shocks
-    shocks = np.random.normal(0, 1, n_paths) 
+    # 使用標準 GBM 公式，確保高波動標的會產生劇烈跌幅
+    shocks = np.random.normal(0, 1, n_paths)
     paths[i] = paths[i-1] * np.exp((mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * shocks)
 
-# 嚴格計算 KI 與 KO 邏輯
+# 統計 KI
 ki_count = 0
 for j in range(n_paths):
     path = paths[:, j]
-    # 先判斷是否 KO 出場
     triggered_ko = False
-    for t in range(21, n_days): # 一個月後比價
+    for t in range(21, n_days):
         if path[t] >= ko_pct:
             triggered_ko = True
             break
-    # 只有在「沒被 KO」的情況下，觸發 KI 才算輸
-    if not triggered_ko:
-        if np.min(path) <= ki_pct:
-            ki_count += 1
+    if not triggered_ko and np.min(path) <= ki_pct:
+        ki_count += 1
 
 win_rate = ((n_paths - ki_count) / n_paths) * 100
 
-# --- 5. Plotting ---
+# --- 5. Plotting (取前 100 條繪圖避免手機卡頓，但計算用 500 條) ---
 fig = go.Figure()
-for j in range(n_paths):
-    fig.add_trace(go.Scatter(y=paths[:, j], mode='lines', line=dict(width=0.5, color='rgba(100, 150, 255, 0.3)'), showlegend=False))
+for j in range(min(n_paths, 100)):
+    fig.add_trace(go.Scatter(y=paths[:, j], mode='lines', line=dict(width=0.4, color='rgba(100, 150, 255, 0.2)'), showlegend=False))
 fig.add_hline(y=1.0, line_color="white", line_width=2)
 fig.add_hline(y=ko_pct, line_dash="dash", line_color="#00FFA3", annotation_text="KO Ref")
 fig.add_hline(y=ki_pct, line_dash="dot", line_color="red", annotation_text="KI Barrier")
@@ -103,6 +90,6 @@ st.markdown(f"""
     <div style="background-color: #1E1E1E; padding: 20px; border-radius: 12px; border: 2px solid #00FFA3; text-align: center;">
         <p style="color: #00FFA3; font-size: 16px; margin:0;">🛡️ Estimated Win Rate</p>
         <p style="color: #FFFFFF; font-size: 36px; font-weight: bold; margin: 5px 0;">{win_rate:.1f}%</p>
-        <p style="color: #888888; font-size: 11px;">Win defined as: No KI event occurring before Expiry or KO.</p>
+        <p style="color: #888888; font-size: 11px;">Simulation based on 500 daily paths.</p>
     </div>
     """, unsafe_allow_html=True)
