@@ -29,23 +29,31 @@ if not tickers: tickers = ["NVDA"]
 ticker = st.selectbox("🎯 Target Asset", tickers)
 
 # --- 2. Robust Data Fetching ---
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=60)
 def get_asset_info_safe(symbol):
     try:
         asset = yf.Ticker(symbol)
-        fast = asset.fast_info
-        try:
-            full_info = asset.info
-            name = full_info.get('longName', symbol)
-            pe = full_info.get('trailingPE', 'N/A')
-        except:
-            name = symbol
-            pe = 'N/A'
+        
+        # 1. 第一層：嘗試抓最近 1 天的 1 分鐘 K 線 (對美、港、日股最穩)
+        hist = asset.history(period="1d", interval="1m")
+        if not hist.empty:
+            price = hist['Close'].iloc[-1]
+        else:
+            # 2. 第二層：K 線抓不到，試 fast_info
+            price = asset.fast_info.get('last_price')
+            
+        # 3. 第三層：如果還是無效值 (None, 0 或 預設 100)，改抓 info
+        if price is None or price <= 0 or price == 100.0:
+            price = asset.info.get('regularMarketPrice', 100.0)
+
+        # 抓取基本資訊
+        full_info = asset.info
         return {
-            "name": name, "pe": pe,
-            "low52": fast.get('yearLow', 0),
-            "high52": fast.get('yearHigh', 0),
-            "curr": fast.get('last_price') or 100.0
+            "name": full_info.get('longName', symbol),
+            "pe": full_info.get('trailingPE', 'N/A'),
+            "low52": asset.fast_info.get('yearLow', 0),
+            "high52": asset.fast_info.get('yearHigh', 0),
+            "curr": price
         }
     except:
         return {"name": symbol, "pe": "N/A", "low52": 0, "high52": 0, "curr": 100.0}
