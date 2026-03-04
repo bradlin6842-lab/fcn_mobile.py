@@ -23,7 +23,7 @@ st.markdown("""
 st.title("🛡️ FCN Mobile Sentinel Pro")
 
 # --- 1. Asset Selection ---
-input_tickers = st.text_input("Enter Tickers (e.g., NVDA, TSM, 6857.T)", "NVDA, TSM, 6857.T")
+input_tickers = st.text_input("Enter Tickers (e.g., NVDA, TSM, 6857.T, 9988.HK)", "NVDA, TSM, 6857.T, 9988.HK")
 tickers = [t.strip().upper() for t in input_tickers.split(",") if t.strip()]
 if not tickers: tickers = ["NVDA"]
 ticker = st.selectbox("🎯 Target Asset", tickers)
