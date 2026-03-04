@@ -126,35 +126,3 @@ st.markdown(f"""
     </div>
     """, unsafe_allow_html=True)
 
-# --- 8. PDF Export ---
-if st.button("🚀 Export FCN Audit Report"):
-    st.balloons()
-    audit_no = random.randint(100000, 999999)
-    class PDF(FPDF):
-        def header(self):
-            self.set_fill_color(20, 20, 20); self.rect(0, 0, 210, 40, 'F')
-            self.set_text_color(255, 255, 255); self.set_font('Arial', 'B', 18)
-            self.cell(0, 20, 'FCN STRATEGY AUDIT REPORT', 0, 1, 'C')
-            self.ln(25)
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, f' [I] ASSET PROFILE: {asset_info["name"]} ({ticker})', 0, 1, 'L', fill=True)
-    pdf.set_font('Arial', '', 11)
-    pdf.cell(0, 7, f'  - Valuation (P/E Ratio): {asset_info["pe"]}', ln=True)
-    pdf.cell(0, 7, f'  - 52-Week Range: ${asset_info["low52"]:,.1f} - ${asset_info["high52"]:,.1f}', ln=True)
-    pdf.cell(0, 7, f'  - Current Price: ${current_p:,.2f}', ln=True)
-    pdf.ln(5)
-    pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 10, ' [II] STRATEGY PARAMETERS', 0, 1, 'L', fill=True)
-    pdf.set_font('Arial', '', 11)
-    pdf.cell(0, 7, f'  - Strike Price: {strike_pct*100:.1f}% (${current_p*strike_pct:,.2f})', ln=True)
-    pdf.cell(0, 7, f'  - Knock-In Barrier: {ki_pct*100:.1f}% (${current_p*ki_pct:,.2f})', ln=True)
-    pdf.ln(5)
-    pdf.set_font('Arial', 'B', 14)
-    pdf.set_text_color(0, 150, 0)
-    pdf.cell(0, 10, f'  >>> ESTIMATED WIN RATE: {win_rate:.1f}%', ln=True)
-    
-    pdf_output = pdf.output(dest='S').encode('latin-1')
-    b64_pdf = base64.b64encode(pdf_output).decode()
-    st.markdown(f'<a href="data:application/pdf;base64,{b64_pdf}" download="FCN_{ticker}_{audit_no}.pdf" style="text-decoration:none;"><div style="background-color:#2ECC71;color:white;padding:15px;border-radius:10px;text-align:center;font-weight:bold;">⬇️ Download Audit Report</div></a>', unsafe_allow_html=True)
