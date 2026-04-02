@@ -26,19 +26,18 @@ input_tickers = st.text_input("Enter Tickers (e.g. NVDA, 6857.T, 0700.HK)", "NVD
 tickers = [t.strip().upper() for t in input_tickers.split(",") if t.strip()]
 ticker = st.selectbox("🎯 Target Asset", tickers if tickers else ["NVDA"])
 
-# --- 2. Robust Data Fetching (找回 P/E 與 52W 數據) ---
+# --- 2. Robust Data Fetching (Update to Forward P/E) ---
 @st.cache_data(ttl=60)
 def get_asset_info_robust(symbol):
     try:
         asset = yf.Ticker(symbol)
-        # 第一層：1分鐘 K 線抓取 (最準確現價)
+        # 1. 強效抓價邏輯 (1m interval)
         hist = asset.history(period="1d", interval="1m")
         if not hist.empty:
             price = hist['Close'].iloc[-1]
         else:
             price = asset.fast_info.get('last_price', 100.0)
             
-        # 第二層：如果還是 100 或無效，抓取 regularMarketPrice
         if price is None or price <= 0 or price == 100.0:
             price = asset.info.get('regularMarketPrice', 100.0)
 
@@ -48,12 +47,12 @@ def get_asset_info_robust(symbol):
         return {
             "name": info.get('longName', symbol),
             "curr": price,
-            "pe": info.get('trailingPE', 'N/A'),
+            "forward_pe": info.get('forwardPE', 'N/A'), # 改為 Forward PE
             "low52": fast.get('yearLow', 'N/A'),
             "high52": fast.get('yearHigh', 'N/A')
         }
     except:
-        return {"name": symbol, "curr": 100.0, "pe": "N/A", "low52": "N/A", "high52": "N/A"}
+        return {"name": symbol, "curr": 100.0, "forward_pe": "N/A", "low52": "N/A", "high52": "N/A"}
 
 asset_info = get_asset_info_robust(ticker)
 current_p = asset_info['curr']
@@ -62,9 +61,9 @@ current_p = asset_info['curr']
 st.subheader(f"🏢 {asset_info['name']}")
 st.metric("Real-time Market Price", f"${current_p:,.2f}") 
 
-# 重新找回的三欄位資訊
+# 顯示指標欄位
 m1, m2, m3 = st.columns(3)
-with m1: st.metric("P/E Ratio", f"{asset_info['pe']:.2f}" if isinstance(asset_info['pe'], (int, float)) else "N/A")
+with m1: st.metric("Forward P/E", f"{asset_info['forward_pe']:.2f}" if isinstance(asset_info['forward_pe'], (int, float)) else "N/A")
 with m2: st.metric("52W Low", f"${asset_info['low52']:,.1f}" if isinstance(asset_info['low52'], (int, float)) else "N/A")
 with m3: st.metric("52W High", f"${asset_info['high52']:,.1f}" if isinstance(asset_info['high52'], (int, float)) else "N/A")
 
@@ -84,14 +83,16 @@ with st.container():
     else:
         ki_pct = st.slider("Knock-In Barrier (KI %)", 30, 95, 60) / 100
 
-    ko_pct = st.slider("KO Level (Autocall %)", 100, 110, 103) / 100
+    # KO Level 區間調整為 80% - 110%
+    ko_pct = st.slider("KO Level (Autocall %)", 80, 110, 103) / 100
 
-# 顯示金額
-c1, c2 = st.columns(2)
-with c1: st.metric("Target Strike Price", f"${current_p * strike_pct:,.2f}")
+# 顯示連動金額
+c1, c2, c3 = st.columns(3)
+with c1: st.metric("Target Strike", f"${current_p * strike_pct:,.2f}")
 with c2: 
     ki_val = "N/A" if no_ki_mode else f"${current_p * ki_pct:,.2f}"
-    st.metric("Target KI Price", ki_val)
+    st.metric("Target KI", ki_val)
+with c3: st.metric("KO Level", f"${current_p * ko_pct:,.2f}")
 
 # --- 4. Volatility Period ---
 st.write("---")
